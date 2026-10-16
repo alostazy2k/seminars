@@ -24,6 +24,7 @@
   --bg:#FAF8F3; --panel:#FFFFFF; --line:#DAD3C4; --ink:#1B2333; --muted:#5F6A80;
   --up:#1F7A6D; --down:#A8781F; --point:#1B2333; --tan:#5F6A80; color-scheme:light}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 28px}
 .wrap{max-width:1180px;margin:0 auto;display:grid;gap:16px}
@@ -119,16 +120,14 @@ const F = [
   {id:"sin", label:"sin x", name:"f(x) = sin x,  −π < x < π", x0:-3.6, x1:3.6, y0:-1.6, y1:1.6, dom:[-Math.PI,Math.PI],
    f:x=>Math.sin(x), d1:x=>Math.cos(x), d2:x=>-Math.sin(x), ip:[[0,0]],
    note:"Opening picture of the section: concave up on (−π, 0), concave down on (0, π); (0, 0) is an inflection point."},
-  {id:"rp1", label:"Related Problem 1", name:"given: the graph of y = f′(x)  (dashed)", x0:-4.5, x1:3.5, y0:-3, y1:8, dom:[-4.3,3.2],
-   f:x=>0.5*(x**6/30+x**5/20-7*x**4/12-x**3/6+3*x*x)-x,
-   d1:x=>0.5*(x**5/5+x**4/4-7*x**3/3-x*x/2+6*x)-1,
-   d2:x=>0.5*(x+3)*(x+1)*(x-1)*(x-2), aux:true,
-   ip:[[-3,1.2],[-1,2.2833],[1,0.1667],[2,0.5333]],
-   note:"Dashed: the given f′. Solid: one function f with that derivative. Where f′ rises, f is concave up: (−∞, −3), (−1, 1), (2, ∞); where f′ falls, concave down: (−3, −1), (1, 2). Curves redrawn with the same turning points as Figure 4.2.4."},
-  {id:"e2", label:"Example 2", name:"given: y = f′(x) (dashed) and its derivative f″", x0:-1.6, x1:2.1, y0:-3, y1:3, dom:[-1.5,2],
-   f:x=>5*x**4/12-0.5*x**3-x*x, d1:x=>5*x**3/3-1.5*x*x-2*x, d2:x=>5*x*x-3*x-2, aux:true,
-   ip:[[-0.4,-0.11733],[1,-1.08333]],
-   note:"f″ = 0 at x = −2/5 and x = 1 and changes sign there: concave up on (−∞, −2/5), (1, ∞), concave down on (−2/5, 1); inflection points at x = −2/5 and x = 1. Curves redrawn with the same zeros of f″ as Figure 4.2.7."},
+  {id:"rp1", label:"Related Problem 1", mode:"deriv", name:"given: the graph of y = f′(x)", x0:-5, x1:5, y0:-8, y1:8, dom:[-5,5],
+   f:x=>0, d1:x=>0.5*(x**5/5+x**4/4-7*x**3/3-x*x/2+6*x)-1, d2:x=>0.5*(x+3)*(x+1)*(x-1)*(x-2),
+   ip:[[-3,5.075],[-1,-3.0583],[1,0.8083],[2,-0.1333]],
+   note:"Only f′ is given. The tangent to the graph of f′ has slope f″. Where f′ is increasing (f″ > 0), f is concave up: (−∞, −3), (−1, 1), (2, ∞). Where f′ is decreasing (f″ < 0), f is concave down: (−3, −1), (1, 2). Graph redrawn with the same turning points as Figure 4.2.4."},
+  {id:"e2", label:"Example 2", mode:"deriv", f2plot:true, name:"given: the graphs of y = f′(x) and y = f″(x)", x0:-1.6, x1:2.1, y0:-4, y1:6, dom:[-1.5,2],
+   f:x=>0, d1:x=>5*x**3/3-1.5*x*x-2*x, d2:x=>5*x*x-3*x-2,
+   ip:[[-0.4,0.45333],[1,-1.83333]],
+   note:"f″ > 0 on (−∞, −2/5) and (1, ∞): f′ increasing, so f is concave up there. f″ < 0 on (−2/5, 1): f′ decreasing, so f is concave down. f″ changes sign at x = −2/5 and x = 1: the x-coordinates of the inflection points of f. Graphs redrawn with the same zeros of f″ as Figure 4.2.7."},
   {id:"e3", label:"Example 3", name:"f(x) = x³ − 6x² + 9x + 30", x0:-1.5, x1:5.5, y0:0, y1:52, dom:[-1.5,5.5],
    f:x=>x**3-6*x*x+9*x+30, d1:x=>3*x*x-12*x+9, d2:x=>6*x-12, ip:[[2,32]],
    note:"f″(x) = 6x − 12. Concave down on (−∞, 2), concave up on (2, ∞); inflection point (2, 32)."},
@@ -169,6 +168,8 @@ const fmt = v => (!isFinite(v) ? "undefined" : (Math.abs(v) < 5e-10 ? "0" : v.to
 
 function niceStep(span){ const s = span / 8, p = 10 ** Math.floor(Math.log10(s)), m = s / p; return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * p; }
 
+const val = x => cur.mode === "deriv" ? cur.d1(x) : cur.f(x);
+const slope = x => cur.mode === "deriv" ? cur.d2(x) : cur.d1(x);
 function draw(){
   const line = css("--line"), muted = css("--muted"), up = css("--up"), down = css("--down"), ink = css("--ink"), tanC = css("--tan"), pt = css("--point");
   ctx.clearRect(0,0,W,H);
@@ -194,26 +195,29 @@ function draw(){
   for (let i = 0; i <= N; i++){
     const x = a + (b - a) * i / N;
     if (cur.gap !== undefined && Math.abs(x - cur.gap) < (b - a) / 300){ prev = null; continue; }
-    const y = cur.f(x);
+    const y = val(x);
     if (!isFinite(y) || y < cur.y0 - 40 * (cur.y1 - cur.y0) || y > cur.y1 + 40 * (cur.y1 - cur.y0)){ prev = null; continue; }
     if (prev){ const xm = (x + prev[0]) / 2, s = cur.d2(xm);
       ctx.strokeStyle = s > 0 ? up : (s < 0 ? down : ink);
       ctx.beginPath(); ctx.moveTo(X(prev[0]), Y(prev[1])); ctx.lineTo(X(x), Y(y)); ctx.stroke(); }
     prev = [x, y];
   }
-  if (cur.aux){ ctx.strokeStyle = muted; ctx.lineWidth = 2; ctx.setLineDash([6,5]); ctx.beginPath(); let st = false;
-    for (let i = 0; i <= N; i++){ const u = a + (b - a) * i / N, v = cur.d1(u); if (!isFinite(v)){ st = false; continue; }
+  if (cur.f2plot){ ctx.strokeStyle = muted; ctx.lineWidth = 2; ctx.beginPath(); let st = false;
+    for (let i = 0; i <= N; i++){ const u = a + (b - a) * i / N, v = cur.d2(u); if (!isFinite(v)){ st = false; continue; }
       st ? ctx.lineTo(X(u), Y(v)) : ctx.moveTo(X(u), Y(v)); st = true; }
-    ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = muted; ctx.font = "12px " + css("--f-mono");
-    ctx.fillText("y = f′(x)  (dashed)", PAD.l + 8, PAD.t + 14); }
+    ctx.stroke();
+    ctx.fillStyle = muted; [-0.4, 1].forEach(z => { ctx.beginPath(); ctx.arc(X(z), Y(0), 4, 0, 7); ctx.fill(); }); }
+  if (cur.mode === "deriv"){ ctx.font = "12px " + css("--f-mono"); ctx.fillStyle = ink;
+    ctx.fillText("coloured curve: y = f′(x)", PAD.l + 8, PAD.t + 14);
+    if (cur.f2plot){ ctx.fillStyle = muted; ctx.fillText("grey curve: y = f″(x)", PAD.l + 8, PAD.t + 30); } }
   // tangent
-  const x = pointX(), y = cur.f(x), m = cur.d1(x);
+  const x = pointX(), y = val(x), m = slope(x);
   if (isFinite(m) && isFinite(y)){ ctx.strokeStyle = tanC; ctx.lineWidth = 1.6; ctx.setLineDash([7,5]); ctx.beginPath();
     const span = (cur.x1 - cur.x0) * 0.28; ctx.moveTo(X(x - span), Y(y - m * span)); ctx.lineTo(X(x + span), Y(y + m * span)); ctx.stroke(); ctx.setLineDash([]); }
   ctx.restore();
   // inflection points
   cur.ip.forEach(([u,v]) => { ctx.fillStyle = css("--bg"); ctx.strokeStyle = ink; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(X(u), Y(v), 6, 0, 7); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = ink; ctx.font = "12px " + css("--f-body"); ctx.fillText("inflection", X(u) + 9, Y(v) - 9); });
+    ctx.fillStyle = ink; ctx.font = "12px " + css("--f-body"); ctx.fillText(cur.mode === "deriv" ? "inflection x of f" : "inflection", X(u) + 9, Y(v) - 9); });
   // point
   if (isFinite(y)){ ctx.fillStyle = pt; ctx.beginPath(); ctx.arc(X(x), Y(y), 7.5, 0, 7); ctx.fill();
     ctx.strokeStyle = css("--bg"); ctx.lineWidth = 2; ctx.stroke(); }
@@ -236,16 +240,21 @@ function drawStrip(xp){
 }
 
 function readout(x){
+  const deriv = cur.mode === "deriv";
   const y = cur.f(x), d1 = cur.d1(x), d2 = cur.d2(x);
+  const rf = document.getElementById("rf"), r1 = document.getElementById("rd1"), r2 = document.getElementById("rd2");
+  rf.parentElement.hidden = deriv;
+  r1.previousElementSibling.textContent = deriv ? "f′(x)  on the graph" : "f′(x)  slope";
+  r2.previousElementSibling.textContent = deriv ? "f″(x)  slope of f′" : "f″(x)";
   document.getElementById("rx").textContent = fmt(x);
-  document.getElementById("rf").textContent = fmt(y);
-  document.getElementById("rd1").textContent = fmt(d1);
-  document.getElementById("rd2").textContent = !isFinite(d2) ? "does not exist" : (d2 > 0 ? "> 0   " : d2 < 0 ? "< 0   " : "= 0   ") + fmt(d2);
+  rf.textContent = fmt(y);
+  r1.textContent = fmt(d1);
+  r2.textContent = !isFinite(d2) ? "does not exist" : (d2 > 0 ? "> 0   " : d2 < 0 ? "< 0   " : "= 0   ") + fmt(d2);
   const st = document.getElementById("rs");
   if (!isFinite(d2)){ st.className = "state none"; st.textContent = "f″ does not exist here"; }
-  else if (Math.abs(d2) < 1e-6){ st.className = "state none"; st.textContent = "f″ = 0 — candidate point"; }
-  else if (d2 > 0){ st.className = "state up"; st.textContent = "concave up — graph above tangent"; }
-  else { st.className = "state down"; st.textContent = "concave down — graph below tangent"; }
+  else if (Math.abs(d2) < 1e-6){ st.className = "state none"; st.textContent = deriv ? "f″ = 0 — possible inflection of f" : "f″ = 0 — candidate point"; }
+  else if (d2 > 0){ st.className = "state up"; st.textContent = deriv ? "f′ increasing ⇒ f concave up" : "concave up — graph above tangent"; }
+  else { st.className = "state down"; st.textContent = deriv ? "f′ decreasing ⇒ f concave down" : "concave down — graph below tangent"; }
 }
 
 function pointX(){ const a = cur.dom[0], b = cur.dom[1]; let x = a + (b - a) * px;
