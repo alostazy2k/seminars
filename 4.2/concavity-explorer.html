@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Concavity Explorer</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,600&display=swap">
+<style>
+/* Layout: one working board — function picker on top, graph with a draggable point, live readout + f'' sign strip beside it (stacks on phones). */
+:root{
+  --bg:#0E1626; --panel:#152036; --line:#2B3A55; --ink:#F1ECE2; --muted:#93A0B8;
+  --up:#5FC2B4; --down:#E8C27A; --point:#F4F0E8; --tan:#C9D3E6;
+  --f-display:"Source Serif 4", Georgia, "Times New Roman", serif;
+  --f-body:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){
+  --bg:#FAF8F3; --panel:#FFFFFF; --line:#DAD3C4; --ink:#1B2333; --muted:#5F6A80;
+  --up:#1F7A6D; --down:#A8781F; --point:#1B2333; --tan:#5F6A80; color-scheme:light}}
+:root[data-theme="light"]{
+  --bg:#FAF8F3; --panel:#FFFFFF; --line:#DAD3C4; --ink:#1B2333; --muted:#5F6A80;
+  --up:#1F7A6D; --down:#A8781F; --point:#1B2333; --tan:#5F6A80; color-scheme:light}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 28px}
+.wrap{max-width:1180px;margin:0 auto;display:grid;gap:16px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 24px}
+h1{font-family:var(--f-display);font-weight:600;font-size:clamp(1.5rem,3vw,2.1rem);margin:0;text-wrap:balance}
+.eyebrow{font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;color:var(--down);font-weight:600}
+.lede{color:var(--muted);margin:0;max-width:62ch}
+.picker{display:flex;flex-wrap:wrap;gap:8px}
+.picker button{font:inherit;font-size:.86rem;color:var(--ink);background:transparent;border:1px solid var(--line);
+  border-radius:999px;padding:6px 14px;cursor:pointer}
+.picker button:hover{border-color:var(--muted)}
+.picker button[aria-pressed="true"]{border-color:var(--down);color:var(--down)}
+.picker button:focus-visible,.board:focus-visible,input:focus-visible{outline:2px solid var(--down);outline-offset:2px}
+.main{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px}
+@media (max-width:820px){.main{grid-template-columns:minmax(0,1fr)}}
+.board{background:var(--panel);border:1px solid var(--line);border-radius:10px;position:relative;min-width:0}
+canvas{display:block;width:100%;height:auto;touch-action:none;cursor:grab;border-radius:10px}
+.strip{padding:0 14px 12px}
+#ink{position:absolute;left:0;top:0;width:100%;pointer-events:none;border-radius:10px}
+#ink.on{pointer-events:auto;cursor:crosshair}
+.pen{position:absolute;top:10px;right:10px;display:flex;gap:6px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:4px 6px}
+.pen button{font:inherit;font-size:.78rem;color:var(--ink);background:transparent;border:1px solid var(--line);border-radius:999px;padding:3px 10px;cursor:pointer}
+.pen button[aria-pressed="true"]{border-color:var(--down);color:var(--down)}
+.pen .sw{width:20px;height:20px;padding:0;background:var(--c)}
+.pen .sw.sel{outline:2px solid var(--ink);outline-offset:1px}
+.side{display:grid;gap:12px;align-content:start;min-width:0}
+.read{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:grid;gap:6px}
+.row{display:flex;justify-content:space-between;gap:12px;font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:.92rem}
+.row span:first-child{color:var(--muted)}
+.state{margin-top:6px;font-weight:600;font-size:1rem;padding:6px 10px;border-radius:6px;text-align:center;border:1px solid currentColor}
+.state.up{color:var(--up)} .state.down{color:var(--down)} .state.none{color:var(--muted)}
+.fx{font-family:var(--f-mono);font-size:.9rem;color:var(--ink)}
+.note{font-size:.84rem;color:var(--muted);margin:0}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:.82rem;color:var(--muted)}
+.legend i{display:inline-block;width:18px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px}
+label.sl{display:grid;gap:4px;font-size:.82rem;color:var(--muted)}
+input[type=range]{width:100%;accent-color:var(--down)}
+@media (prefers-reduced-motion: reduce){*{scroll-behavior:auto}}
+</style>
+<style>body{margin:0}</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header>
+    <div>
+      <div class="eyebrow">Section 4.2 · Faculty seminar</div>
+      <h1>Concavity Explorer</h1>
+    </div>
+    <p class="lede">Drag the point along the curve, or turn on the pen to write on the graph. The tangent line, the slope f′(x) and the sign of f″(x) follow it; the curve is coloured by concavity.</p>
+  </header>
+
+  <div class="picker" id="picker" role="group" aria-label="Choose a function"></div>
+
+  <div class="main">
+    <div class="board">
+      <canvas id="cv" width="900" height="540" tabindex="0" aria-label="Graph of the selected function with a draggable point"></canvas>
+      <canvas id="ink" aria-hidden="true"></canvas>
+      <div class="pen" role="group" aria-label="Pen">
+        <button type="button" id="penBtn" aria-pressed="false">Pen</button>
+        <button type="button" class="sw" data-c="#E8C27A" aria-label="Gold pen" style="--c:#E8C27A"></button>
+        <button type="button" class="sw" data-c="#E4572E" aria-label="Red pen" style="--c:#E4572E"></button>
+        <button type="button" class="sw" data-c="#5FC2B4" aria-label="Teal pen" style="--c:#5FC2B4"></button>
+        <button type="button" id="clrBtn">Clear</button>
+      </div>
+      <div class="strip"><canvas id="sg" width="900" height="60" aria-label="Sign of the second derivative"></canvas></div>
+    </div>
+    <aside class="side">
+      <div class="read" aria-live="polite">
+        <div class="fx" id="fname"></div>
+        <div class="row"><span>x</span><span id="rx"></span></div>
+        <div class="row"><span>f(x)</span><span id="rf"></span></div>
+        <div class="row"><span>f′(x)  slope</span><span id="rd1"></span></div>
+        <div class="row"><span>f″(x)</span><span id="rd2"></span></div>
+        <div class="state" id="rs"></div>
+      </div>
+      <label class="sl" for="xs">Move the point
+        <input type="range" id="xs" min="0" max="1000" value="300">
+      </label>
+      <div class="legend">
+        <span><i style="background:var(--up)"></i>concave up · f″ &gt; 0</span>
+        <span><i style="background:var(--down)"></i>concave down · f″ &lt; 0</span>
+      </div>
+      <p class="note" id="fnote"></p>
+    </aside>
+  </div>
+</div>
+
+<script>
+const cbrt = Math.cbrt;
+const F = [
+  {id:"sin", label:"sin x", name:"f(x) = sin x,  −π < x < π", x0:-3.6, x1:3.6, y0:-1.6, y1:1.6, dom:[-Math.PI,Math.PI],
+   f:x=>Math.sin(x), d1:x=>Math.cos(x), d2:x=>-Math.sin(x), ip:[[0,0]],
+   note:"Opening picture of the section: concave up on (−π, 0), concave down on (0, π); (0, 0) is an inflection point."},
+  {id:"rp1", label:"Related Problem 1", name:"given: the graph of y = f′(x)  (dashed)", x0:-4.5, x1:3.5, y0:-3, y1:8, dom:[-4.3,3.2],
+   f:x=>0.5*(x**6/30+x**5/20-7*x**4/12-x**3/6+3*x*x)-x,
+   d1:x=>0.5*(x**5/5+x**4/4-7*x**3/3-x*x/2+6*x)-1,
+   d2:x=>0.5*(x+3)*(x+1)*(x-1)*(x-2), aux:true,
+   ip:[[-3,1.2],[-1,2.2833],[1,0.1667],[2,0.5333]],
+   note:"Dashed: the given f′. Solid: one function f with that derivative. Where f′ rises, f is concave up: (−∞, −3), (−1, 1), (2, ∞); where f′ falls, concave down: (−3, −1), (1, 2). Curves redrawn with the same turning points as Figure 4.2.4."},
+  {id:"e2", label:"Example 2", name:"given: y = f′(x) (dashed) and its derivative f″", x0:-1.6, x1:2.1, y0:-3, y1:3, dom:[-1.5,2],
+   f:x=>5*x**4/12-0.5*x**3-x*x, d1:x=>5*x**3/3-1.5*x*x-2*x, d2:x=>5*x*x-3*x-2, aux:true,
+   ip:[[-0.4,-0.11733],[1,-1.08333]],
+   note:"f″ = 0 at x = −2/5 and x = 1 and changes sign there: concave up on (−∞, −2/5), (1, ∞), concave down on (−2/5, 1); inflection points at x = −2/5 and x = 1. Curves redrawn with the same zeros of f″ as Figure 4.2.7."},
+  {id:"e3", label:"Example 3", name:"f(x) = x³ − 6x² + 9x + 30", x0:-1.5, x1:5.5, y0:0, y1:52, dom:[-1.5,5.5],
+   f:x=>x**3-6*x*x+9*x+30, d1:x=>3*x*x-12*x+9, d2:x=>6*x-12, ip:[[2,32]],
+   note:"f″(x) = 6x − 12. Concave down on (−∞, 2), concave up on (2, ∞); inflection point (2, 32)."},
+  {id:"e6", label:"Example 6", name:"f(x) = (x + 3) / (x − 5)", x0:-15, x1:20, y0:-10, y1:10, dom:[-15,20], gap:5,
+   f:x=>(x+3)/(x-5), d1:x=>-8/(x-5)**2, d2:x=>16/(x-5)**3, ip:[], asym:{x:5,y:1},
+   note:"f″(x) = 16/(x − 5)³. Concavity changes around x = 5, but 5 ∉ D_f, so there is no inflection point."},
+  {id:"e8", label:"Example 8", name:"f(x) = x^(2/3) (1 − x)", x0:-2, x1:2, y0:-1.2, y1:5, dom:[-2,2], cusp:0,
+   f:x=>cbrt(x*x)*(1-x), d1:x=>(2-5*x)/(3*cbrt(x)), d2:x=>-2*(5*x+1)/(9*cbrt(x)**4),
+   ip:[[-0.2, 1.2*cbrt(1/25)]],
+   note:"f″ = −2(5x + 1)/(9x^(4/3)). f″ does not exist at x = 0 but keeps its sign there: no inflection at 0. Only inflection point: (−1/5, (6/5)∛(1/25)) ≈ (−0.2, 0.41)."},
+  {id:"e9", label:"Example 9", name:"f(x) = x + sin x,  0 ≤ x ≤ 2π", x0:0, x1:6.6, y0:0, y1:7, dom:[0,2*Math.PI],
+   f:x=>x+Math.sin(x), d1:x=>1+Math.cos(x), d2:x=>-Math.sin(x), ip:[[Math.PI,Math.PI]],
+   note:"f″(x) = −sin x. Concave down on (0, π), concave up on (π, 2π); (π, π) is the only inflection point."},
+  {id:"e10", label:"Example 10 (1)", name:"f(x) = 3x⁴ − 4x³ − 6x² + 12x + 1,  [−2, 2]", x0:-2.1, x1:2.1, y0:-20, y1:50, dom:[-2,2],
+   f:x=>3*x**4-4*x**3-6*x*x+12*x+1, d1:x=>12*x**3-12*x*x-12*x+12, d2:x=>36*x*x-24*x-12,
+   ip:[[-1/3,-94/27],[1,6]],
+   note:"f″(x) = 12(3x + 1)(x − 1). Inflection points (−1/3, −94/27) and (1, 6). Relative minimum at x = −1; at x = 1, f′ = 0 but no extremum."},
+];
+
+const cv = document.getElementById("cv"), ctx = cv.getContext("2d");
+const sg = document.getElementById("sg"), sctx = sg.getContext("2d");
+const xs = document.getElementById("xs");
+let cur = F[1], px = 0.5, W = 900, H = 540, SW = 900, SH = 60;
+
+function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+function size(){
+  const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  W = Math.max(280, r.width); H = Math.round(W * (W < 520 ? 0.78 : 0.6));
+  cv.width = W * dpr; cv.height = H * dpr; cv.style.height = H + "px"; ctx.setTransform(dpr,0,0,dpr,0,0);
+  const s = sg.getBoundingClientRect(); SW = Math.max(240, s.width); SH = 60;
+  sg.width = SW * dpr; sg.height = SH * dpr; sg.style.height = SH + "px"; sctx.setTransform(dpr,0,0,dpr,0,0);
+}
+const PAD = {l:40, r:16, t:16, b:28};
+const X = x => PAD.l + (x - cur.x0) / (cur.x1 - cur.x0) * (W - PAD.l - PAD.r);
+const Y = y => H - PAD.b - (y - cur.y0) / (cur.y1 - cur.y0) * (H - PAD.t - PAD.b);
+const invX = p => cur.x0 + (p - PAD.l) / (W - PAD.l - PAD.r) * (cur.x1 - cur.x0);
+const fmt = v => (!isFinite(v) ? "undefined" : (Math.abs(v) < 5e-10 ? "0" : v.toFixed(3)));
+
+function niceStep(span){ const s = span / 8, p = 10 ** Math.floor(Math.log10(s)), m = s / p; return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * p; }
+
+function draw(){
+  const line = css("--line"), muted = css("--muted"), up = css("--up"), down = css("--down"), ink = css("--ink"), tanC = css("--tan"), pt = css("--point");
+  ctx.clearRect(0,0,W,H);
+  ctx.font = "11px " + css("--f-mono"); ctx.fillStyle = muted; ctx.strokeStyle = line; ctx.lineWidth = 1;
+  // grid + ticks
+  const sx = niceStep(cur.x1 - cur.x0), sy = niceStep(cur.y1 - cur.y0);
+  for (let x = Math.ceil(cur.x0 / sx) * sx; x <= cur.x1; x += sx){ ctx.globalAlpha = .45; ctx.beginPath(); ctx.moveTo(X(x), PAD.t); ctx.lineTo(X(x), H - PAD.b); ctx.stroke(); ctx.globalAlpha = 1;
+    if (Math.abs(x) > 1e-9) ctx.fillText(+x.toFixed(2), X(x) - 6, Math.min(H - PAD.b + 14, Math.max(Y(0) + 14, PAD.t + 12))); }
+  for (let y = Math.ceil(cur.y0 / sy) * sy; y <= cur.y1; y += sy){ ctx.globalAlpha = .45; ctx.beginPath(); ctx.moveTo(PAD.l, Y(y)); ctx.lineTo(W - PAD.r, Y(y)); ctx.stroke(); ctx.globalAlpha = 1;
+    if (Math.abs(y) > 1e-9) ctx.fillText(+y.toFixed(2), Math.max(4, Math.min(X(0) - 30, W - 40)), Y(y) + 4); }
+  // axes
+  ctx.strokeStyle = muted; ctx.lineWidth = 1.2; ctx.beginPath();
+  if (cur.y0 <= 0 && cur.y1 >= 0){ ctx.moveTo(PAD.l, Y(0)); ctx.lineTo(W - PAD.r, Y(0)); }
+  if (cur.x0 <= 0 && cur.x1 >= 0){ ctx.moveTo(X(0), PAD.t); ctx.lineTo(X(0), H - PAD.b); }
+  ctx.stroke();
+  // asymptotes
+  if (cur.asym){ ctx.setLineDash([5,5]); ctx.beginPath(); ctx.moveTo(X(cur.asym.x), PAD.t); ctx.lineTo(X(cur.asym.x), H - PAD.b);
+    ctx.moveTo(PAD.l, Y(cur.asym.y)); ctx.lineTo(W - PAD.r, Y(cur.asym.y)); ctx.stroke(); ctx.setLineDash([]); }
+  // curve coloured by sign of f''
+  ctx.save(); ctx.beginPath(); ctx.rect(PAD.l, PAD.t, W - PAD.l - PAD.r, H - PAD.t - PAD.b); ctx.clip();
+  const N = 900, a = cur.dom[0], b = cur.dom[1]; ctx.lineWidth = 3; ctx.lineCap = "round";
+  let prev = null;
+  for (let i = 0; i <= N; i++){
+    const x = a + (b - a) * i / N;
+    if (cur.gap !== undefined && Math.abs(x - cur.gap) < (b - a) / 300){ prev = null; continue; }
+    const y = cur.f(x);
+    if (!isFinite(y) || y < cur.y0 - 40 * (cur.y1 - cur.y0) || y > cur.y1 + 40 * (cur.y1 - cur.y0)){ prev = null; continue; }
+    if (prev){ const xm = (x + prev[0]) / 2, s = cur.d2(xm);
+      ctx.strokeStyle = s > 0 ? up : (s < 0 ? down : ink);
+      ctx.beginPath(); ctx.moveTo(X(prev[0]), Y(prev[1])); ctx.lineTo(X(x), Y(y)); ctx.stroke(); }
+    prev = [x, y];
+  }
+  if (cur.aux){ ctx.strokeStyle = muted; ctx.lineWidth = 2; ctx.setLineDash([6,5]); ctx.beginPath(); let st = false;
+    for (let i = 0; i <= N; i++){ const u = a + (b - a) * i / N, v = cur.d1(u); if (!isFinite(v)){ st = false; continue; }
+      st ? ctx.lineTo(X(u), Y(v)) : ctx.moveTo(X(u), Y(v)); st = true; }
+    ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = muted; ctx.font = "12px " + css("--f-mono");
+    ctx.fillText("y = f′(x)  (dashed)", PAD.l + 8, PAD.t + 14); }
+  // tangent
+  const x = pointX(), y = cur.f(x), m = cur.d1(x);
+  if (isFinite(m) && isFinite(y)){ ctx.strokeStyle = tanC; ctx.lineWidth = 1.6; ctx.setLineDash([7,5]); ctx.beginPath();
+    const span = (cur.x1 - cur.x0) * 0.28; ctx.moveTo(X(x - span), Y(y - m * span)); ctx.lineTo(X(x + span), Y(y + m * span)); ctx.stroke(); ctx.setLineDash([]); }
+  ctx.restore();
+  // inflection points
+  cur.ip.forEach(([u,v]) => { ctx.fillStyle = css("--bg"); ctx.strokeStyle = ink; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(X(u), Y(v), 6, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = ink; ctx.font = "12px " + css("--f-body"); ctx.fillText("inflection", X(u) + 9, Y(v) - 9); });
+  // point
+  if (isFinite(y)){ ctx.fillStyle = pt; ctx.beginPath(); ctx.arc(X(x), Y(y), 7.5, 0, 7); ctx.fill();
+    ctx.strokeStyle = css("--bg"); ctx.lineWidth = 2; ctx.stroke(); }
+  drawStrip(x); readout(x);
+}
+
+function drawStrip(xp){
+  const up = css("--up"), down = css("--down"), muted = css("--muted"), ink = css("--ink");
+  sctx.clearRect(0,0,SW,SH);
+  const L = PAD.l, R = SW - PAD.r, sxp = v => L + (v - cur.x0) / (cur.x1 - cur.x0) * (R - L);
+  const a = cur.dom[0], b = cur.dom[1], N = 600;
+  for (let i = 0; i < N; i++){ const u = a + (b - a) * (i + .5) / N;
+    if (cur.gap !== undefined && Math.abs(u - cur.gap) < (b - a) / 300) continue;
+    const s = cur.d2(u); if (!isFinite(s)) continue;
+    sctx.fillStyle = s > 0 ? up : down; sctx.globalAlpha = .85;
+    sctx.fillRect(sxp(a + (b - a) * i / N), 22, (R - L) * (b - a) / (cur.x1 - cur.x0) / N + 1, 12); }
+  sctx.globalAlpha = 1; sctx.fillStyle = muted; sctx.font = "11px " + css("--f-mono");
+  sctx.fillText("sign of f″(x)", L, 14);
+  sctx.fillStyle = ink; sctx.beginPath(); const p = sxp(xp); sctx.moveTo(p, 38); sctx.lineTo(p - 6, 50); sctx.lineTo(p + 6, 50); sctx.fill();
+}
+
+function readout(x){
+  const y = cur.f(x), d1 = cur.d1(x), d2 = cur.d2(x);
+  document.getElementById("rx").textContent = fmt(x);
+  document.getElementById("rf").textContent = fmt(y);
+  document.getElementById("rd1").textContent = fmt(d1);
+  document.getElementById("rd2").textContent = !isFinite(d2) ? "does not exist" : (d2 > 0 ? "> 0   " : d2 < 0 ? "< 0   " : "= 0   ") + fmt(d2);
+  const st = document.getElementById("rs");
+  if (!isFinite(d2)){ st.className = "state none"; st.textContent = "f″ does not exist here"; }
+  else if (Math.abs(d2) < 1e-6){ st.className = "state none"; st.textContent = "f″ = 0 — candidate point"; }
+  else if (d2 > 0){ st.className = "state up"; st.textContent = "concave up — graph above tangent"; }
+  else { st.className = "state down"; st.textContent = "concave down — graph below tangent"; }
+}
+
+function pointX(){ const a = cur.dom[0], b = cur.dom[1]; let x = a + (b - a) * px;
+  if (cur.gap !== undefined && Math.abs(x - cur.gap) < 0.15) x = cur.gap + (x < cur.gap ? -0.15 : 0.15);
+  return x; }
+
+function select(fn){
+  if (typeof ictx !== "undefined") ictx.clearRect(0,0,W,H);
+  cur = fn; px = fn.id === "e6" ? 0.62 : 0.3; xs.value = Math.round(px * 1000);
+  document.getElementById("fname").textContent = fn.name;
+  document.getElementById("fnote").textContent = fn.note;
+  document.querySelectorAll("#picker button").forEach(b => b.setAttribute("aria-pressed", b.dataset.id === fn.id));
+  draw();
+}
+
+const picker = document.getElementById("picker");
+F.forEach(fn => { const b = document.createElement("button"); b.type = "button"; b.id = "pick-" + fn.id; b.dataset.id = fn.id; b.textContent = fn.label;
+  b.addEventListener("click", () => select(fn)); picker.appendChild(b); });
+
+function setFromClient(clientX){ const r = cv.getBoundingClientRect(); const x = invX(clientX - r.left);
+  px = Math.min(1, Math.max(0, (x - cur.dom[0]) / (cur.dom[1] - cur.dom[0]))); xs.value = Math.round(px * 1000); draw(); }
+let dragging = false;
+cv.addEventListener("pointerdown", e => { dragging = true; cv.setPointerCapture(e.pointerId); setFromClient(e.clientX); });
+cv.addEventListener("pointermove", e => { if (dragging) setFromClient(e.clientX); });
+cv.addEventListener("pointerup", () => dragging = false);
+cv.addEventListener("keydown", e => { if (e.key === "ArrowRight" || e.key === "ArrowLeft"){ px = Math.min(1, Math.max(0, px + (e.key === "ArrowRight" ? .005 : -.005))); xs.value = Math.round(px * 1000); draw(); e.preventDefault(); } });
+xs.addEventListener("input", () => { px = xs.value / 1000; draw(); });
+window.addEventListener("resize", () => { size(); sizeInk(); draw(); });
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", draw);
+new MutationObserver(draw).observe(document.documentElement, {attributes:true, attributeFilter:["data-theme"]});
+const ink = document.getElementById("ink"), ictx = ink.getContext("2d"); let penOn = false, penC = "#E8C27A", drawing = false;
+function sizeInk(){ const dpr = window.devicePixelRatio || 1; ink.width = W * dpr; ink.height = H * dpr; ink.style.height = H + "px"; ictx.setTransform(dpr,0,0,dpr,0,0); }
+document.getElementById("penBtn").addEventListener("click", e => { penOn = !penOn; e.currentTarget.setAttribute("aria-pressed", penOn); ink.classList.toggle("on", penOn); });
+document.querySelectorAll(".pen .sw").forEach(b => b.addEventListener("click", () => { penC = b.dataset.c; document.querySelectorAll(".pen .sw").forEach(o => o.classList.toggle("sel", o === b));
+  if (!penOn) document.getElementById("penBtn").click(); }));
+document.querySelector('.pen .sw').classList.add("sel");
+document.getElementById("clrBtn").addEventListener("click", () => ictx.clearRect(0,0,W,H));
+ink.addEventListener("pointerdown", e => { drawing = true; ink.setPointerCapture(e.pointerId); const r = ink.getBoundingClientRect();
+  ictx.strokeStyle = penC; ictx.lineWidth = 3; ictx.lineCap = "round"; ictx.lineJoin = "round"; ictx.beginPath(); ictx.moveTo(e.clientX - r.left, e.clientY - r.top); });
+ink.addEventListener("pointermove", e => { if (!drawing) return; const r = ink.getBoundingClientRect(); ictx.lineTo(e.clientX - r.left, e.clientY - r.top); ictx.stroke(); });
+ink.addEventListener("pointerup", () => drawing = false);
+function fromHash(){ const h = (location.hash || "").replace("#",""); return F.find(f => f.id === h); }
+window.addEventListener("hashchange", () => { const f = fromHash(); if (f) select(f); });
+size(); sizeInk(); select(fromHash() || F[3]);
+document.fonts && document.fonts.ready.then(draw);
+</script>
+
+</body>
+</html>
