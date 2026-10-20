@@ -100,6 +100,7 @@ input[type=range]{width:100%;accent-color:var(--down)}
         <div class="row"><span>f(x)</span><span id="rf"></span></div>
         <div class="row"><span>f′(x)  slope</span><span id="rd1"></span></div>
         <div class="row"><span>f″(x)</span><span id="rd2"></span></div>
+        <div class="row" id="rtrRow" hidden><span>f′ is</span><span id="rtr"></span></div>
         <div class="state" id="rs"></div>
       </div>
       <label class="sl" for="xs">Move the point
@@ -117,9 +118,16 @@ input[type=range]{width:100%;accent-color:var(--down)}
 <script>
 const cbrt = Math.cbrt;
 const F = [
-  {id:"sin", label:"sin x", name:"f(x) = sin x,  −π < x < π", x0:-3.6, x1:3.6, y0:-1.6, y1:1.6, dom:[-Math.PI,Math.PI],
-   f:x=>Math.sin(x), d1:x=>Math.cos(x), d2:x=>-Math.sin(x), ip:[[0,0]],
-   note:"Opening picture of the section: concave up on (−π, 0), concave down on (0, π); (0, 0) is an inflection point."},
+  {id:"cube", label:"x³", triple:true, name:"f(x) = x³", x0:-2.2, x1:2.2, y0:-9, y1:9, dom:[-2,2],
+   f:x=>x**3, d1:x=>3*x*x, d2:x=>6*x, ip:[[0,0]],
+   panels:[
+     {g:x=>x**3,  tan:x=>3*x*x, y0:-9.5, y1:9.5,  ticks:[-8,-4,4,8],   label:"y = f(x) = x³",   ipLabel:"inflection (0, 0)",
+      words:[["concave down",-1.05,4.5,"down","center"],["concave up",1.05,-4.5,"up","center"]]},
+     {g:x=>3*x*x, tan:x=>6*x,   y0:-1.8, y1:13.5, ticks:[4,8,12],      label:"y = f′(x) = 3x²", ipLabel:"minimum of f′",
+      words:[["f′ decreasing",-0.18,6,"down","right"],["f′ increasing",0.18,6,"up","left"]]},
+     {g:x=>6*x,   shade:true,   y0:-13.5, y1:13.5, ticks:[-12,-6,6,12], label:"y = f″(x) = 6x",  ipLabel:"f″ changes sign",
+      words:[["f″ < 0",-1.1,7,"down","center"],["f″ > 0",1.1,-7,"up","center"]]}],
+   note:"f′(x) = 3x², f″(x) = 6x. On (−∞, 0): f′ is decreasing, f″ < 0, so f is concave down. On (0, ∞): f′ is increasing, f″ > 0, so f is concave up. At x = 0, f′ has its minimum and f″ changes sign: (0, 0) is an inflection point. Note f′(0) = 0 as well, yet x = 0 is not an extremum."},
   {id:"rp1", label:"Related Problem 1", mode:"deriv", name:"given: the graph of y = f′(x)", x0:-5, x1:5, y0:-8, y1:8, dom:[-5,5],
    f:x=>0, d1:x=>0.5*(x**5/5+x**4/4-7*x**3/3-x*x/2+6*x)-1, d2:x=>0.5*(x+3)*(x+1)*(x-1)*(x-2),
    ip:[[-3,5.075],[-1,-3.0583],[1,0.8083],[2,-0.1333]],
@@ -155,9 +163,9 @@ let cur = F[1], px = 0.5, W = 900, H = 540, SW = 900, SH = 60;
 function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
 function size(){
   const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
-  W = Math.max(280, r.width); H = Math.round(W * (W < 520 ? 0.78 : 0.6));
+  W = Math.max(280, r.width); H = Math.round(W * (cur.triple ? (W < 520 ? 1.6 : 1.08) : (W < 520 ? 0.78 : 0.6)));
   cv.width = W * dpr; cv.height = H * dpr; cv.style.height = H + "px"; ctx.setTransform(dpr,0,0,dpr,0,0);
-  const s = sg.getBoundingClientRect(); SW = Math.max(240, s.width); SH = 60;
+  const s = sg.getBoundingClientRect(); SW = Math.max(240, s.width); SH = cur.triple ? 100 : 60;
   sg.width = SW * dpr; sg.height = SH * dpr; sg.style.height = SH + "px"; sctx.setTransform(dpr,0,0,dpr,0,0);
 }
 const PAD = {l:40, r:16, t:16, b:28};
@@ -170,7 +178,71 @@ function niceStep(span){ const s = span / 8, p = 10 ** Math.floor(Math.log10(s))
 
 const val = x => cur.mode === "deriv" ? cur.d1(x) : cur.f(x);
 const slope = x => cur.mode === "deriv" ? cur.d2(x) : cur.d1(x);
+// Three stacked panels for the x³ tab: f, f′, f″ share one x-axis and one moving point.
+function drawTriple(){
+  const line = css("--line"), muted = css("--muted"), up = css("--up"), down = css("--down"), ink = css("--ink"),
+        tanC = css("--tan"), pt = css("--point"), bg = css("--bg"), mono = css("--f-mono"), body = css("--f-body");
+  ctx.clearRect(0,0,W,H);
+  const gap = 18, top = PAD.t, bot = H - PAD.b, ph = (bot - top - 2 * gap) / 3, XL = PAD.l, XR = W - PAD.r;
+  const x = pointX(), N = 600, a = cur.dom[0], b = cur.dom[1];
+  const colAt = u => { const s = cur.d2(u); return s > 0 ? up : (s < 0 ? down : ink); };
+  cur.panels.forEach((P, k) => {
+    const t = top + k * (ph + gap), bt = t + ph, Yp = y => bt - (y - P.y0) / (P.y1 - P.y0) * ph;
+    // frame + grid
+    ctx.strokeStyle = line; ctx.lineWidth = 1; ctx.globalAlpha = .7; ctx.strokeRect(XL, t, XR - XL, ph);
+    ctx.globalAlpha = .4;
+    for (let u = -2; u <= 2; u++){ ctx.beginPath(); ctx.moveTo(X(u), t); ctx.lineTo(X(u), bt); ctx.stroke(); }
+    P.ticks.forEach(v => { ctx.beginPath(); ctx.moveTo(XL, Yp(v)); ctx.lineTo(XR, Yp(v)); ctx.stroke(); });
+    ctx.globalAlpha = 1; ctx.font = "11px " + mono; ctx.fillStyle = muted; ctx.textAlign = "right";
+    P.ticks.forEach(v => ctx.fillText(v, XL - 5, Yp(v) + 4));
+    ctx.textAlign = "left";
+    // axes
+    ctx.strokeStyle = muted; ctx.lineWidth = 1.2; ctx.beginPath();
+    ctx.moveTo(XL, Yp(0)); ctx.lineTo(XR, Yp(0)); ctx.moveTo(X(0), t); ctx.lineTo(X(0), bt); ctx.stroke();
+    ctx.save(); ctx.beginPath(); ctx.rect(XL, t, XR - XL, ph); ctx.clip();
+    // shaded area between f″ and the x-axis
+    if (P.shade){ ctx.globalAlpha = .2;
+      [[a, 0, down], [0, b, up]].forEach(([p, q, c]) => { ctx.fillStyle = c; ctx.beginPath(); ctx.moveTo(X(p), Yp(0));
+        for (let i = 0; i <= 120; i++){ const u = p + (q - p) * i / 120; ctx.lineTo(X(u), Yp(P.g(u))); }
+        ctx.lineTo(X(q), Yp(0)); ctx.closePath(); ctx.fill(); });
+      ctx.globalAlpha = 1; }
+    // curve coloured by sign of f″ (same colour code in all three panels)
+    ctx.lineWidth = 3; ctx.lineCap = "round";
+    for (let i = 1; i <= N; i++){ const u0 = a + (b - a) * (i - 1) / N, u1 = a + (b - a) * i / N;
+      ctx.strokeStyle = colAt((u0 + u1) / 2); ctx.beginPath(); ctx.moveTo(X(u0), Yp(P.g(u0))); ctx.lineTo(X(u1), Yp(P.g(u1))); ctx.stroke(); }
+    // words placed in the empty side of each panel
+    ctx.font = "600 13px " + body;
+    P.words.forEach(([w, u, v, c, al]) => { ctx.fillStyle = c === "up" ? up : down; ctx.textAlign = al; ctx.fillText(w, X(u), Yp(v)); });
+    ctx.textAlign = "left";
+    // tangent: slope f′ on the f-panel, slope f″ on the f′-panel
+    const yv = P.g(x);
+    if (P.tan){ const m = P.tan(x), sp = 0.85; ctx.strokeStyle = tanC; ctx.lineWidth = 1.6; ctx.setLineDash([7,5]);
+      ctx.beginPath(); ctx.moveTo(X(x - sp), Yp(yv - m * sp)); ctx.lineTo(X(x + sp), Yp(yv + m * sp)); ctx.stroke(); ctx.setLineDash([]); }
+    // drop line on the f″-panel: its length and side show the sign
+    if (P.shade){ ctx.strokeStyle = colAt(x); ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(X(x), Yp(0)); ctx.lineTo(X(x), Yp(yv)); ctx.stroke(); }
+    ctx.restore();
+    // panel title, centred at the top (the curves are away from there)
+    ctx.font = "600 13px " + mono; ctx.textAlign = "center"; const tw = ctx.measureText(P.label).width;
+    ctx.fillStyle = bg; ctx.globalAlpha = .85; ctx.fillRect((XL + XR) / 2 - tw / 2 - 6, t + 4, tw + 12, 20); ctx.globalAlpha = 1;
+    ctx.fillStyle = ink; ctx.fillText(P.label, (XL + XR) / 2, t + 19); ctx.textAlign = "left";
+    // inflection marker at x = 0
+    ctx.fillStyle = bg; ctx.strokeStyle = ink; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(X(0), Yp(P.g(0)), 6, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = ink; ctx.font = "12px " + body; ctx.fillText(P.ipLabel, X(0) + 9, Yp(P.g(0)) - (k === 1 ? -16 : 9));
+    // moving point
+    ctx.fillStyle = pt; ctx.beginPath(); ctx.arc(X(x), Yp(yv), 7.5, 0, 7); ctx.fill(); ctx.strokeStyle = bg; ctx.lineWidth = 2; ctx.stroke();
+  });
+  // one vertical guide through the three panels
+  ctx.strokeStyle = tanC; ctx.lineWidth = 1.2; ctx.setLineDash([3,4]); ctx.globalAlpha = .8;
+  ctx.beginPath(); ctx.moveTo(X(x), top); ctx.lineTo(X(x), bot); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+  // x tick labels under the last panel
+  ctx.font = "11px " + mono; ctx.fillStyle = muted; ctx.textAlign = "center";
+  for (let u = -2; u <= 2; u++) ctx.fillText(u, X(u), bot + 15);
+  ctx.textAlign = "left";
+  drawStrip(x); readout(x);
+}
+
 function draw(){
+  if (cur.triple) return drawTriple();
   const line = css("--line"), muted = css("--muted"), up = css("--up"), down = css("--down"), ink = css("--ink"), tanC = css("--tan"), pt = css("--point");
   ctx.clearRect(0,0,W,H);
   ctx.font = "11px " + css("--f-mono"); ctx.fillStyle = muted; ctx.strokeStyle = line; ctx.lineWidth = 1;
@@ -228,6 +300,23 @@ function drawStrip(xp){
   const up = css("--up"), down = css("--down"), muted = css("--muted"), ink = css("--ink");
   sctx.clearRect(0,0,SW,SH);
   const L = PAD.l, R = SW - PAD.r, sxp = v => L + (v - cur.x0) / (cur.x1 - cur.x0) * (R - L);
+  if (cur.triple){
+    const off = sg.getBoundingClientRect().left - cv.getBoundingClientRect().left, sxp = v => X(v) - off;   // align with the panels above
+    // two aligned bars: trend of f′ and sign of f″ — same colours, same switch point
+    const rows = [["trend of f′(x)", "decreasing", "increasing", 20], ["sign of f″(x)", "negative  (−)", "positive  (+)", 58]];
+    rows.forEach(([title, lw, rw, y]) => {
+      sctx.globalAlpha = .85;
+      sctx.fillStyle = down; sctx.fillRect(sxp(cur.dom[0]), y, sxp(0) - sxp(cur.dom[0]), 14);
+      sctx.fillStyle = up;   sctx.fillRect(sxp(0), y, sxp(cur.dom[1]) - sxp(0), 14);
+      sctx.globalAlpha = 1; sctx.font = "11px " + css("--f-mono"); sctx.fillStyle = muted; sctx.textAlign = "left";
+      sctx.fillText(title, L, y - 6);
+      sctx.font = "600 12px " + css("--f-body"); sctx.textAlign = "center";
+      sctx.fillStyle = down; sctx.fillText(lw, sxp(-1), y - 6);
+      sctx.fillStyle = up;   sctx.fillText(rw, sxp(1), y - 6);
+      sctx.textAlign = "left"; });
+    sctx.fillStyle = ink; sctx.beginPath(); const p = sxp(xp); sctx.moveTo(p, 76); sctx.lineTo(p - 6, 88); sctx.lineTo(p + 6, 88); sctx.fill();
+    return;
+  }
   const a = cur.dom[0], b = cur.dom[1], N = 600;
   for (let i = 0; i < N; i++){ const u = a + (b - a) * (i + .5) / N;
     if (cur.gap !== undefined && Math.abs(u - cur.gap) < (b - a) / 300) continue;
@@ -240,6 +329,28 @@ function drawStrip(xp){
 }
 
 function readout(x){
+  const trRow = document.getElementById("rtrRow");
+  trRow.hidden = !cur.triple;
+  if (cur.triple){
+    const d1 = cur.d1(x), d2 = cur.d2(x), z = Math.abs(x) < 1e-9;
+    const r1 = document.getElementById("rd1"), r2 = document.getElementById("rd2");
+    document.getElementById("rf").parentElement.hidden = false;
+    r1.previousElementSibling.textContent = "f′(x)  slope of f";
+    r2.previousElementSibling.textContent = "f″(x)  slope of f′";
+    document.getElementById("rx").textContent = fmt(x);
+    document.getElementById("rf").textContent = fmt(cur.f(x));
+    r1.textContent = fmt(d1);
+    r2.textContent = z ? "0" : fmt(d2);
+    const tr = document.getElementById("rtr");
+    tr.textContent = z ? "at its minimum" : (d2 > 0 ? "increasing" : "decreasing");
+    tr.style.color = z ? "" : (d2 > 0 ? css("--up") : css("--down"));
+    const st = document.getElementById("rs");
+    if (z){ st.className = "state none"; st.textContent = "f″ = 0 — inflection point (also f′ = 0)"; }
+    else if (d2 > 0){ st.className = "state up"; st.textContent = "f′ increasing ⇔ f″ > 0 ⇒ concave up"; }
+    else { st.className = "state down"; st.textContent = "f′ decreasing ⇔ f″ < 0 ⇒ concave down"; }
+    return;
+  }
+  document.getElementById("rtr").style.color = "";
   const deriv = cur.mode === "deriv";
   const y = cur.f(x), d1 = cur.d1(x), d2 = cur.d2(x);
   const rf = document.getElementById("rf"), r1 = document.getElementById("rd1"), r2 = document.getElementById("rd2");
@@ -259,11 +370,13 @@ function readout(x){
 
 function pointX(){ const a = cur.dom[0], b = cur.dom[1]; let x = a + (b - a) * px;
   if (cur.gap !== undefined && Math.abs(x - cur.gap) < 0.15) x = cur.gap + (x < cur.gap ? -0.15 : 0.15);
+  if (cur.triple) x = Math.round(x * 1e4) / 1e4 || 0;   // lets keyboard steps land exactly on x = 0
   return x; }
 
 function select(fn){
   if (typeof ictx !== "undefined") ictx.clearRect(0,0,W,H);
   cur = fn; px = fn.id === "e6" ? 0.62 : 0.3; xs.value = Math.round(px * 1000);
+  if (typeof ictx !== "undefined"){ size(); sizeInk(); }   // the x³ tab uses a taller board
   document.getElementById("fname").textContent = fn.name;
   document.getElementById("fnote").textContent = fn.note;
   document.querySelectorAll("#picker button").forEach(b => b.setAttribute("aria-pressed", b.dataset.id === fn.id));
