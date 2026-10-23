@@ -58,6 +58,13 @@ canvas{display:block;width:100%;height:auto;touch-action:none;cursor:grab;border
 .state.up{color:var(--up)} .state.down{color:var(--down)} .state.none{color:var(--muted)}
 .fx{font-family:var(--f-mono);font-size:.9rem;color:var(--ink)}
 .note{font-size:.84rem;color:var(--muted);margin:0}
+.vlink{font:inherit;font-size:.86rem;font-weight:600;color:var(--down);background:transparent;border:1px solid var(--down);border-radius:999px;padding:6px 14px;cursor:pointer;justify-self:start}
+.vlink[aria-expanded="true"]{background:var(--down);color:var(--bg)}
+.vlink:focus-visible,.vbox button:focus-visible{outline:2px solid var(--down);outline-offset:2px}
+.vbox{position:relative;width:300px;max-width:100%;background:#0E1626;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.vbox video{display:block;width:100%;aspect-ratio:16/9;height:auto;background:#0E1626}
+.vbox .vclose{position:absolute;top:6px;right:6px;z-index:2;width:26px;height:26px;border-radius:50%;border:1px solid rgba(244,239,230,.5);background:rgba(14,22,38,.75);color:#F4EFE6;font-size:14px;line-height:1;cursor:pointer}
+.vbox .vmiss{margin:0;padding:12px 40px 12px 14px;font-size:.82rem;color:#F4EFE6}
 .legend{display:flex;flex-wrap:wrap;gap:14px;font-size:.82rem;color:var(--muted)}
 .legend i{display:inline-block;width:18px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px}
 label.sl{display:grid;gap:4px;font-size:.82rem;color:var(--muted)}
@@ -111,6 +118,12 @@ input[type=range]{width:100%;accent-color:var(--down)}
         <span><i style="background:var(--down)"></i>concave down · f″ &lt; 0</span>
       </div>
       <p class="note" id="fnote"></p>
+      <button type="button" class="vlink" id="vlink" aria-expanded="false" aria-controls="vbox" hidden>▶ Procedure: intervals of concavity &amp; inflection points</button>
+      <div class="vbox" id="vbox" hidden>
+        <button type="button" class="vclose" id="vclose" aria-label="Close video">✕</button>
+        <video id="vid" controls playsinline preload="none" src="concavity-procedure.mp4"></video>
+        <p class="vmiss" id="vmiss" hidden>Video not found: place <b>concavity-procedure.mp4</b> in the same folder as this page.</p>
+      </div>
     </aside>
   </div>
 </div>
@@ -379,6 +392,7 @@ function select(fn){
   if (typeof ictx !== "undefined"){ size(); sizeInk(); }   // the x³ tab uses a taller board
   document.getElementById("fname").textContent = fn.name;
   document.getElementById("fnote").textContent = fn.note;
+  if (typeof showVideo === "function"){ showVideo(false); document.getElementById("vlink").hidden = !fn.triple; }
   document.querySelectorAll("#picker button").forEach(b => b.setAttribute("aria-pressed", b.dataset.id === fn.id));
   draw();
 }
@@ -409,6 +423,15 @@ ink.addEventListener("pointerdown", e => { drawing = true; ink.setPointerCapture
   ictx.strokeStyle = penC; ictx.lineWidth = 3; ictx.lineCap = "round"; ictx.lineJoin = "round"; ictx.beginPath(); ictx.moveTo(e.clientX - r.left, e.clientY - r.top); });
 ink.addEventListener("pointermove", e => { if (!drawing) return; const r = ink.getBoundingClientRect(); ictx.lineTo(e.clientX - r.left, e.clientY - r.top); ictx.stroke(); });
 ink.addEventListener("pointerup", () => drawing = false);
+// Procedure video (x³ tab only): opens in the side column, native controls incl. fullscreen
+const vlink = document.getElementById("vlink"), vbox = document.getElementById("vbox"), vid = document.getElementById("vid"), vmiss = document.getElementById("vmiss");
+function showVideo(on){
+  vbox.hidden = !on; vlink.setAttribute("aria-expanded", on);
+  if (on){ vid.play().catch(() => {}); } else { vid.pause(); }
+}
+vlink.addEventListener("click", () => showVideo(vbox.hidden));
+document.getElementById("vclose").addEventListener("click", () => { showVideo(false); vlink.focus(); });
+vid.addEventListener("error", () => { vid.hidden = true; vmiss.hidden = false; });
 function fromHash(){ const h = (location.hash || "").replace("#",""); return F.find(f => f.id === h); }
 window.addEventListener("hashchange", () => { const f = fromHash(); if (f) select(f); });
 size(); sizeInk(); select(fromHash() || F[3]);
